@@ -1,0 +1,8 @@
+{
+  "name": "GameplayTest",
+  "description": "Retro 11v11 pixel art football game inspired by classic 90s top-down arcade football with dynamic camera, authentic SWOS-style sprites, smart squad AI, and full controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
