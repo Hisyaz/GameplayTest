@@ -1,9 +1,13 @@
 import React from 'react';
-import { Play, RotateCcw, Volume2, VolumeX, Info, Languages, Eye, Zap, Shield, Sparkles, Bot, CheckCircle2, Gauge } from 'lucide-react';
+import { Play, RotateCcw, Volume2, VolumeX, Info, Languages, Eye, Zap, Shield, Sparkles, Bot, CheckCircle2, Gauge, Target } from 'lucide-react';
 import { HOME_KIT, AWAY_KIT } from '../game/constants';
 import { audio } from '../game/audio';
 import { t, Language } from '../game/i18n';
-import { DifficultyLevel } from '../types';
+import { DifficultyLevel, PlayerIndicatorType, PlayerIndicatorStyle } from '../types';
+
+import { HudDisplayMode } from './MatchHUD';
+import { ControllerBgMode, ControllerTheme } from './ArcadeConsole';
+import { RadarZoom } from './RadarMinimap';
 
 interface PauseModalProps {
   isOpen: boolean;
@@ -17,6 +21,26 @@ interface PauseModalProps {
   onChangeDifficulty: (diff: DifficultyLevel) => void;
   gameSpeed?: number;
   onChangeGameSpeed?: (speed: number) => void;
+  minimapMode?: 'transparent' | 'solid' | 'off';
+  onChangeMinimapMode?: (mode: 'transparent' | 'solid' | 'off') => void;
+  minimapSonar?: boolean;
+  onChangeMinimapSonar?: (sonar: boolean) => void;
+  radarZoom?: RadarZoom;
+  onChangeRadarZoom?: (zoom: RadarZoom) => void;
+  scoreboardMode?: HudDisplayMode;
+  onChangeScoreboardMode?: (mode: HudDisplayMode) => void;
+  specialActionTextMode?: HudDisplayMode;
+  onChangeSpecialActionTextMode?: (mode: HudDisplayMode) => void;
+  playerInfoMode?: HudDisplayMode;
+  onChangePlayerInfoMode?: (mode: HudDisplayMode) => void;
+  controllerBgMode?: ControllerBgMode;
+  onChangeControllerBgMode?: (mode: ControllerBgMode) => void;
+  controllerTheme?: ControllerTheme;
+  onChangeControllerTheme?: (theme: ControllerTheme) => void;
+  playerIndicatorType?: PlayerIndicatorType;
+  onChangePlayerIndicatorType?: (type: PlayerIndicatorType) => void;
+  playerIndicatorStyle?: PlayerIndicatorStyle;
+  onChangePlayerIndicatorStyle?: (style: PlayerIndicatorStyle) => void;
 }
 
 export const PauseModal: React.FC<PauseModalProps> = ({
@@ -31,6 +55,26 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onChangeDifficulty,
   gameSpeed = 100,
   onChangeGameSpeed,
+  minimapMode = 'transparent',
+  onChangeMinimapMode,
+  minimapSonar = true,
+  onChangeMinimapSonar,
+  radarZoom = 'full',
+  onChangeRadarZoom,
+  scoreboardMode = 'solid',
+  onChangeScoreboardMode,
+  specialActionTextMode = 'solid',
+  onChangeSpecialActionTextMode,
+  playerInfoMode = 'solid',
+  onChangePlayerInfoMode,
+  controllerBgMode = 'solid',
+  onChangeControllerBgMode,
+  controllerTheme = 'dark_blue',
+  onChangeControllerTheme,
+  playerIndicatorType = 'small_arrow',
+  onChangePlayerIndicatorType,
+  playerIndicatorStyle = 'solid',
+  onChangePlayerIndicatorStyle,
 }) => {
   if (!isOpen) return null;
 
@@ -210,6 +254,353 @@ export const PauseModal: React.FC<PauseModalProps> = ({
                 </p>
               </button>
             </div>
+          </div>
+
+          {/* RADAR / MINIMAP SETTINGS */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div className="flex items-center gap-2 text-slate-200 font-bold text-xs">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                <span className="font-mono uppercase tracking-wider">RADAR / MINIMAP DISPLAY</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                ACTIVE: <b className="text-amber-400">{minimapMode.toUpperCase()}</b>
+                {minimapMode !== 'off' && (
+                  <span className="text-emerald-400 ml-1">
+                    {minimapSonar ? '• NEON LIGHTS' : '• CLASSIC'}
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* 1. BACKGROUND STYLE (SOLID, TRANSPARENT, OFF) */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                1. BACKGROUND TRANSPARENCY
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'transparent', label: 'TRANSPARENT', desc: 'Glass overlay' },
+                  { id: 'solid', label: 'SOLID', desc: 'Dark retro turf' },
+                  { id: 'off', label: 'OFF', desc: 'Hide minimap' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => onChangeMinimapMode && onChangeMinimapMode(item.id as any)}
+                    className={`py-2 px-2 rounded-lg text-center font-['Press_Start_2P'] text-[8px] sm:text-[9px] border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      minimapMode === item.id
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-500/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <span className="text-[7px] text-slate-400 font-sans font-normal tracking-normal">{item.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. THREE ZOOM CONFIGURATIONS (FULL PITCH, ZOOM 1, ZOOM 2) */}
+            {minimapMode !== 'off' && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/70">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  2. RADAR ZOOM CONFIGURATION
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'full', label: 'FULL PITCH', desc: 'Entire field 11v11' },
+                    { id: 'zoom1', label: 'ZOOM 1', desc: 'Medium tactical view' },
+                    { id: 'zoom2', label: 'ZOOM 2', desc: 'Close action view' },
+                  ].map((z) => (
+                    <button
+                      key={z.id}
+                      onClick={() => onChangeRadarZoom && onChangeRadarZoom(z.id as any)}
+                      className={`py-2 px-1.5 rounded-lg text-center font-['Press_Start_2P'] text-[8px] sm:text-[9px] border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                        radarZoom === z.id
+                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/50 shadow-md'
+                          : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      <span>{z.label}</span>
+                      <span className="text-[7px] text-slate-400 font-sans font-normal tracking-normal">{z.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3. ILLUMINATION STYLE (NEON LIGHTS vs CLASSIC 90s PIXEL) */}
+            {minimapMode !== 'off' && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/70">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  3. ILLUMINATION STYLE (SONAR VIBE)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    onClick={() => onChangeMinimapSonar && onChangeMinimapSonar(true)}
+                    className={`p-2.5 rounded-lg text-left border transition cursor-pointer flex items-center justify-between ${
+                      minimapSonar
+                        ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500/50 shadow-md'
+                        : 'bg-slate-900/60 border-slate-800 hover:bg-slate-900 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className={`font-['Press_Start_2P'] text-[9px] ${minimapSonar ? 'text-emerald-400' : 'text-slate-300'}`}>
+                        ✨ NEON LIGHTS (SONAR)
+                      </span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">
+                        Each player dot is an illuminated light with glowing halo and altitude rings.
+                      </span>
+                    </div>
+                    {minimapSonar && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 ml-2" />}
+                  </button>
+
+                  <button
+                    onClick={() => onChangeMinimapSonar && onChangeMinimapSonar(false)}
+                    className={`p-2.5 rounded-lg text-left border transition cursor-pointer flex items-center justify-between ${
+                      !minimapSonar
+                        ? 'bg-amber-950/40 border-amber-500/80 ring-1 ring-amber-500/50 shadow-md'
+                        : 'bg-slate-900/60 border-slate-800 hover:bg-slate-900 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className={`font-['Press_Start_2P'] text-[9px] ${!minimapSonar ? 'text-amber-400' : 'text-slate-300'}`}>
+                        ⚽ CLASSIC 90S PIXEL
+                      </span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">
+                        Authentic 32-bit pixel football game pips with kit colors and ball height ring.
+                      </span>
+                    </div>
+                    {!minimapSonar && <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 ml-2" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* PLAYER INDICATOR (ARROW / CIRCLE) SETTINGS */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div className="flex items-center gap-2 text-slate-200 font-bold text-xs">
+                <Target className="w-4 h-4 text-amber-400" />
+                <span className="font-mono uppercase tracking-wider">CONTROLLED PLAYER INDICATOR</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                {playerIndicatorStyle === 'off' ? 'OFF' : `${playerIndicatorType.toUpperCase().replace('_', ' ')} (${playerIndicatorStyle.toUpperCase()})`}
+              </span>
+            </div>
+
+            {/* 1. INDICATOR SHAPE (SMALL ARROW, BIG ARROW, BOTTOM CIRCLE) */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                1. INDICATOR SHAPE (HOVERS ABOVE PLAYER OR FEET)
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'small_arrow', label: 'SMALL ARROW', desc: 'Above head (air gap)' },
+                  { id: 'big_arrow', label: 'BIG ARROW', desc: 'Bold 32-bit chevron' },
+                  { id: 'circle', label: 'CIRCLE', desc: 'Tactical ring at feet' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => onChangePlayerIndicatorType && onChangePlayerIndicatorType(item.id as any)}
+                    className={`py-2 px-1.5 rounded-lg text-center font-['Press_Start_2P'] text-[8px] sm:text-[9px] border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      playerIndicatorType === item.id
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-500/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                    <span className="text-[7px] text-slate-400 font-sans font-normal">{item.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. VISIBILITY / STYLE (SOLID, TRANSPARENT, OFF) */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/70">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                2. INDICATOR STYLE / VISIBILITY
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'solid', label: 'SOLID', desc: '100% bright arcade' },
+                  { id: 'transparent', label: 'TRANSPARENT', desc: 'Subtle glowing tint' },
+                  { id: 'off', label: 'OFF', desc: 'Hide indicator' },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    onClick={() => onChangePlayerIndicatorStyle && onChangePlayerIndicatorStyle(st.id as any)}
+                    className={`py-2 px-1.5 rounded-lg text-center font-['Press_Start_2P'] text-[8px] sm:text-[9px] border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      playerIndicatorStyle === st.id
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-500/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300 hover:text-white'
+                    }`}
+                  >
+                    <span>{st.label}</span>
+                    <span className="text-[7px] text-slate-400 font-sans font-normal">{st.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* HUD & SCOREBOARD DISPLAY SETTINGS */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div className="flex items-center gap-2 text-slate-200 font-bold text-xs">
+                <Eye className="w-4 h-4 text-sky-400" />
+                <span className="font-mono uppercase tracking-wider">HUD & BROADCAST GRAPHICS</span>
+              </div>
+            </div>
+
+            {/* Scoreboard display */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                TOP-LEFT TV SCOREBOARD
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'solid', label: 'SOLID' },
+                  { id: 'transparent', label: 'TRANSPARENT' },
+                  { id: 'off', label: 'OFF' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => onChangeScoreboardMode && onChangeScoreboardMode(s.id as any)}
+                    className={`py-1.5 px-2 rounded-lg text-center font-['Press_Start_2P'] text-[8px] border transition cursor-pointer ${
+                      scoreboardMode === s.id
+                        ? 'bg-sky-500/20 border-sky-400 text-sky-300 ring-1 ring-sky-400/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Special Action Text (Nutmegs, special skills) */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/70">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                BOTTOM-LEFT SPECIAL ACTION TEXT (NUTMEGS / SKILLS)
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'solid', label: 'SOLID' },
+                  { id: 'transparent', label: 'TRANSPARENT' },
+                  { id: 'off', label: 'OFF' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => onChangeSpecialActionTextMode && onChangeSpecialActionTextMode(s.id as any)}
+                    className={`py-1.5 px-2 rounded-lg text-center font-['Press_Start_2P'] text-[8px] border transition cursor-pointer ${
+                      specialActionTextMode === s.id
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 ring-1 ring-amber-400/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Player Info (Name & Number) */}
+            <div className="space-y-1.5 pt-2 border-t border-slate-800/70">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                BOTTOM-LEFT CONTROLLED PLAYER INFO (NAME & NUMBER)
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'solid', label: 'SOLID' },
+                  { id: 'transparent', label: 'TRANSPARENT' },
+                  { id: 'off', label: 'OFF' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => onChangePlayerInfoMode && onChangePlayerInfoMode(s.id as any)}
+                    className={`py-1.5 px-2 rounded-lg text-center font-['Press_Start_2P'] text-[8px] border transition cursor-pointer ${
+                      playerInfoMode === s.id
+                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 ring-1 ring-emerald-400/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* CONTROLLER DECK CUSTOMIZATION */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div className="flex items-center gap-2 text-slate-200 font-bold text-xs">
+                <Gauge className="w-4 h-4 text-amber-400" />
+                <span className="font-mono uppercase tracking-wider">CONTROLLER DECK CUSTOMIZATION</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                {controllerBgMode === 'floating' ? 'FLOATING BUTTONS' : `${controllerTheme.toUpperCase()} DECK`}
+              </span>
+            </div>
+
+            {/* Background Style: Solid, Transparent, Floating */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                CONTROLLER BACKGROUND STYLE
+              </span>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'solid', label: 'SOLID', desc: 'Console chassis' },
+                  { id: 'transparent', label: 'TRANSPARENT', desc: 'Glass backdrop' },
+                  { id: 'floating', label: 'FLOATING', desc: 'Buttons & stick only' },
+                ].map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => onChangeControllerBgMode && onChangeControllerBgMode(c.id as any)}
+                    className={`py-2 px-1.5 rounded-lg text-center font-['Press_Start_2P'] text-[8px] sm:text-[9px] border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                      controllerBgMode === c.id
+                        ? 'bg-amber-500/20 border-amber-400 text-amber-300 ring-1 ring-amber-400/50 shadow-md'
+                        : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <span>{c.label}</span>
+                    <span className="text-[7px] text-slate-400 font-sans">{c.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Theme Colors (Black, White, Dark Blue, Camouflage) */}
+            {controllerBgMode !== 'floating' && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/70">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  CONTROLLER CHASSIS COLOR / THEME
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'dark_blue', label: 'DARK BLUE', bg: '#07131e', border: '#f59e0b' },
+                    { id: 'black', label: 'BLACK', bg: '#090a0f', border: '#71717a' },
+                    { id: 'white', label: 'WHITE', bg: '#e2e8f0', border: '#94a3b8', textColor: '#0f172a' },
+                    { id: 'camo', label: 'CAMOUFLAGE', bg: '#2e3d24', border: '#546b3f' },
+                  ].map((th) => (
+                    <button
+                      key={th.id}
+                      onClick={() => onChangeControllerTheme && onChangeControllerTheme(th.id as any)}
+                      className={`py-2 px-2 rounded-lg text-center font-['Press_Start_2P'] text-[8px] border transition cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                        controllerTheme === th.id
+                          ? 'border-amber-400 ring-2 ring-amber-400/60 shadow-lg scale-102 text-white'
+                          : 'border-slate-700 hover:border-slate-500 text-slate-300'
+                      }`}
+                      style={{ backgroundColor: th.bg }}
+                    >
+                      <span style={{ color: th.textColor || '#ffffff' }}>{th.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* CONTROLS GUIDE */}

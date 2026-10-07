@@ -5,11 +5,12 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { MatchEngine } from './game/engine';
-import { KeyState, DifficultyLevel } from './types';
+import { KeyState, DifficultyLevel, PlayerIndicatorType, PlayerIndicatorStyle } from './types';
 import { PitchCanvas } from './components/PitchCanvas';
-import { MatchHUD } from './components/MatchHUD';
+import { MatchHUD, HudDisplayMode } from './components/MatchHUD';
 import { PauseModal } from './components/PauseModal';
-import { ArcadeConsole } from './components/ArcadeConsole';
+import { ArcadeConsole, ActionModifier, ControllerBgMode, ControllerTheme } from './components/ArcadeConsole';
+import { RadarMinimap, MinimapMode, RadarZoom } from './components/RadarMinimap';
 import { getLanguage, setLanguage, Language } from './game/i18n';
 
 export default function App() {
@@ -44,6 +45,185 @@ export default function App() {
   const [bannerMessage, setBannerMessage] = useState<string | null>(engine.bannerMessage);
   const [currentLang, setCurrentLang] = useState<Language>(getLanguage());
   const [hasBall, setHasBall] = useState(false);
+  const [controlledPlayer, setControlledPlayer] = useState(engine.getControlledPlayer());
+
+  // Camera & Radar focus target ('ball' or 'player')
+  const [cameraFocus, setCameraFocus] = useState<'ball' | 'player'>('ball');
+
+  const handleToggleCameraFocus = () => {
+    const next = engine.toggleCameraFocus();
+    setCameraFocus(next);
+    engine.setBanner(`FOCUS: ${next.toUpperCase()}`, 60);
+    setBannerMessage(`FOCUS: ${next.toUpperCase()}`);
+  };
+
+  // Radar / Minimap settings state
+  const [minimapMode, setMinimapMode] = useState<MinimapMode>(() => {
+    try {
+      const saved = localStorage.getItem('swos_minimap_mode');
+      if (saved === 'solid' || saved === 'transparent' || saved === 'off') return saved;
+    } catch {}
+    return 'transparent';
+  });
+
+  const [minimapSonar, setMinimapSonar] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('swos_minimap_sonar');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true; // Default to requested neon lights!
+  });
+
+  const [radarZoom, setRadarZoom] = useState<RadarZoom>(() => {
+    try {
+      const saved = localStorage.getItem('swos_radar_zoom');
+      if (saved === 'full' || saved === 'zoom1' || saved === 'zoom2') return saved;
+    } catch {}
+    return 'full';
+  });
+
+  // HUD & Scoreboard settings state
+  const [scoreboardMode, setScoreboardMode] = useState<HudDisplayMode>(() => {
+    try {
+      const saved = localStorage.getItem('swos_scoreboard_mode');
+      if (saved === 'solid' || saved === 'transparent' || saved === 'off') return saved;
+    } catch {}
+    return 'solid';
+  });
+
+  const [specialActionTextMode, setSpecialActionTextMode] = useState<HudDisplayMode>(() => {
+    try {
+      const saved = localStorage.getItem('swos_action_text_mode');
+      if (saved === 'solid' || saved === 'transparent' || saved === 'off') return saved;
+    } catch {}
+    return 'solid';
+  });
+
+  const [playerInfoMode, setPlayerInfoMode] = useState<HudDisplayMode>(() => {
+    try {
+      const saved = localStorage.getItem('swos_player_info_mode');
+      if (saved === 'solid' || saved === 'transparent' || saved === 'off') return saved;
+    } catch {}
+    return 'solid';
+  });
+
+  // Controller deck customization state
+  const [controllerBgMode, setControllerBgMode] = useState<ControllerBgMode>(() => {
+    try {
+      const saved = localStorage.getItem('swos_controller_bg_mode');
+      if (saved === 'solid' || saved === 'transparent' || saved === 'floating') return saved;
+    } catch {}
+    return 'solid';
+  });
+
+  const [controllerTheme, setControllerTheme] = useState<ControllerTheme>(() => {
+    try {
+      const saved = localStorage.getItem('swos_controller_theme');
+      if (saved === 'dark_blue' || saved === 'black' || saved === 'white' || saved === 'camo') return saved;
+    } catch {}
+    return 'dark_blue';
+  });
+
+  // Controlled Player Indicator settings state
+  const [playerIndicatorType, setPlayerIndicatorType] = useState<PlayerIndicatorType>(() => {
+    try {
+      const saved = localStorage.getItem('swos_player_indicator_type');
+      if (saved === 'small_arrow' || saved === 'big_arrow' || saved === 'circle') return saved;
+    } catch {}
+    return 'small_arrow';
+  });
+
+  const [playerIndicatorStyle, setPlayerIndicatorStyle] = useState<PlayerIndicatorStyle>(() => {
+    try {
+      const saved = localStorage.getItem('swos_player_indicator_style');
+      if (saved === 'solid' || saved === 'transparent' || saved === 'off') return saved;
+    } catch {}
+    return 'solid';
+  });
+
+  const handlePlayerIndicatorTypeChange = (type: PlayerIndicatorType) => {
+    setPlayerIndicatorType(type);
+    try {
+      localStorage.setItem('swos_player_indicator_type', type);
+    } catch {}
+  };
+
+  const handlePlayerIndicatorStyleChange = (style: PlayerIndicatorStyle) => {
+    setPlayerIndicatorStyle(style);
+    try {
+      localStorage.setItem('swos_player_indicator_style', style);
+    } catch {}
+  };
+
+  const handleMinimapModeChange = (mode: MinimapMode) => {
+    setMinimapMode(mode);
+    try {
+      localStorage.setItem('swos_minimap_mode', mode);
+    } catch {}
+  };
+
+  const handleCycleMinimapMode = () => {
+    const next: MinimapMode = minimapMode === 'transparent' ? 'solid' : minimapMode === 'solid' ? 'off' : 'transparent';
+    handleMinimapModeChange(next);
+  };
+
+  const handleMinimapSonarChange = (sonar: boolean) => {
+    setMinimapSonar(sonar);
+    try {
+      localStorage.setItem('swos_minimap_sonar', String(sonar));
+    } catch {}
+  };
+
+  const handleToggleMinimapSonar = () => {
+    handleMinimapSonarChange(!minimapSonar);
+  };
+
+  const handleRadarZoomChange = (zoom: RadarZoom) => {
+    setRadarZoom(zoom);
+    try {
+      localStorage.setItem('swos_radar_zoom', zoom);
+    } catch {}
+  };
+
+  const handleCycleRadarZoom = () => {
+    const next: RadarZoom = radarZoom === 'full' ? 'zoom1' : radarZoom === 'zoom1' ? 'zoom2' : 'full';
+    handleRadarZoomChange(next);
+  };
+
+  const handleScoreboardModeChange = (mode: HudDisplayMode) => {
+    setScoreboardMode(mode);
+    try {
+      localStorage.setItem('swos_scoreboard_mode', mode);
+    } catch {}
+  };
+
+  const handleSpecialActionTextModeChange = (mode: HudDisplayMode) => {
+    setSpecialActionTextMode(mode);
+    try {
+      localStorage.setItem('swos_action_text_mode', mode);
+    } catch {}
+  };
+
+  const handlePlayerInfoModeChange = (mode: HudDisplayMode) => {
+    setPlayerInfoMode(mode);
+    try {
+      localStorage.setItem('swos_player_info_mode', mode);
+    } catch {}
+  };
+
+  const handleControllerBgModeChange = (mode: ControllerBgMode) => {
+    setControllerBgMode(mode);
+    try {
+      localStorage.setItem('swos_controller_bg_mode', mode);
+    } catch {}
+  };
+
+  const handleControllerThemeChange = (theme: ControllerTheme) => {
+    setControllerTheme(theme);
+    try {
+      localStorage.setItem('swos_controller_theme', theme);
+    } catch {}
+  };
 
   const handleToggleLanguage = () => {
     const nextLang: Language = currentLang === 'en' ? 'es' : 'en';
@@ -64,6 +244,7 @@ export default function App() {
     const distToBall = Math.hypot(engine.ball.x - (cp?.x || 0), engine.ball.y - (cp?.y || 0));
     const ownsBall = !!cp && (engine.ball.ownerId === cp.id || (!engine.ball.ownerId && distToBall < 26 && engine.ball.z < 8));
     setHasBall(ownsBall);
+    setControlledPlayer(cp);
 
     const now = Date.now();
     if (now - lastUiUpdateRef.current > 90) {
@@ -75,13 +256,21 @@ export default function App() {
     }
   }, [engine]);
 
-  // Direct action press/release callbacks for exact-millisecond execution
-  const handleActionPress = useCallback((action: 'pass' | 'shoot' | 'cross' | 'long_pass') => {
-    engine.triggerActionPress(action, keysRef.current);
+  // Direct action press/release callbacks with Q/E modifier support
+  const handleActionPress = useCallback((action: 'pass' | 'shoot' | 'cross' | 'long_pass', modifier?: ActionModifier) => {
+    engine.triggerActionPress(action, keysRef.current, modifier);
   }, [engine]);
 
-  const handleActionRelease = useCallback((action: 'pass' | 'shoot' | 'cross' | 'long_pass') => {
-    engine.triggerActionRelease(action, keysRef.current);
+  const handleActionRelease = useCallback((action: 'pass' | 'shoot' | 'cross' | 'long_pass', modifier?: ActionModifier) => {
+    engine.triggerActionRelease(action, keysRef.current, modifier);
+  }, [engine]);
+
+  const handleModifierChange = useCallback((modifier: ActionModifier) => {
+    engine.setActionModifier(modifier);
+  }, [engine]);
+
+  const handleDeflectionChange = useCallback((ratio: number) => {
+    engine.analogSpeedRatio = ratio;
   }, [engine]);
 
   // Keyboard Event Listeners
@@ -209,34 +398,60 @@ export default function App() {
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#07131e] select-none flex flex-col">
-      {/* UPPER 2D CANVAS FOOTBALL FIELD */}
-      <div className="relative flex-1 w-full min-h-0 overflow-hidden">
+    <div className="relative w-screen h-screen overflow-hidden bg-[#07131e] select-none">
+      {/* FULL-VIEWPORT 2D CANVAS FOOTBALL FIELD (100% SCREEN COVERAGE) */}
+      <div className="absolute inset-0 w-full h-full overflow-hidden">
         <PitchCanvas
           engine={engine}
           keysRef={keysRef}
           onTick={handleTick}
-        />
-
-        {/* 32-BIT RETRO SCOREBOARD AT TOP LEFT ONLY */}
-        <MatchHUD
-          score={score}
-          matchTimeSeconds={matchTime}
-          matchPhase={matchPhase}
-          bannerMessage={bannerMessage}
+          playerIndicatorType={playerIndicatorType}
+          playerIndicatorStyle={playerIndicatorStyle}
         />
       </div>
 
-      {/* 32-BIT ARCADE CONSOLE CONTROLLER DOCKED AT THE BOTTOM */}
-      <ArcadeConsole
-        keys={keysRef.current}
-        hasBall={hasBall}
-        onKeyChange={handleTouchKeyChange}
-        onActionPress={handleActionPress}
-        onActionRelease={handleActionRelease}
-        onTogglePause={handleTogglePause}
-        isPaused={isPaused}
+      {/* 32-BIT RETRO SCOREBOARD, DRAWSTAR TV & BOTTOM-LEFT PLAYER INFO / SPECIAL ACTION TEXT */}
+      <MatchHUD
+        score={score}
+        matchTimeSeconds={matchTime}
+        matchPhase={matchPhase}
+        bannerMessage={bannerMessage}
+        controlledPlayer={controlledPlayer}
+        scoreboardMode={scoreboardMode}
+        specialActionTextMode={specialActionTextMode}
+        playerInfoMode={playerInfoMode}
       />
+
+      {/* 32-BIT RETRO RADAR MINIMAP AT BOTTOM RIGHT ABOVE CONTROLLER */}
+      <RadarMinimap
+        engine={engine}
+        mode={minimapMode}
+        sonar={minimapSonar}
+        zoom={radarZoom}
+        focusTarget={cameraFocus}
+        onCycleMode={handleCycleMinimapMode}
+        onToggleSonar={handleToggleMinimapSonar}
+        onCycleZoom={handleCycleRadarZoom}
+      />
+
+      {/* 32-BIT ARCADE CONSOLE CONTROLLER DOCKED AT THE BOTTOM OVERLAYING PITCH */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-auto">
+        <ArcadeConsole
+          keys={keysRef.current}
+          hasBall={hasBall}
+          onKeyChange={handleTouchKeyChange}
+          onActionPress={handleActionPress}
+          onActionRelease={handleActionRelease}
+          onModifierChange={handleModifierChange}
+          onDeflectionChange={handleDeflectionChange}
+          onTogglePause={handleTogglePause}
+          isPaused={isPaused}
+          controllerBgMode={controllerBgMode}
+          controllerTheme={controllerTheme}
+          cameraFocus={cameraFocus}
+          onToggleCameraFocus={handleToggleCameraFocus}
+        />
+      </div>
 
       {/* PAUSE MODAL (All match options, 32-bit style) */}
       <PauseModal
@@ -251,6 +466,26 @@ export default function App() {
         onChangeDifficulty={handleChangeDifficulty}
         gameSpeed={gameSpeed}
         onChangeGameSpeed={handleGameSpeedChange}
+        minimapMode={minimapMode}
+        onChangeMinimapMode={handleMinimapModeChange}
+        minimapSonar={minimapSonar}
+        onChangeMinimapSonar={handleMinimapSonarChange}
+        radarZoom={radarZoom}
+        onChangeRadarZoom={handleRadarZoomChange}
+        scoreboardMode={scoreboardMode}
+        onChangeScoreboardMode={handleScoreboardModeChange}
+        specialActionTextMode={specialActionTextMode}
+        onChangeSpecialActionTextMode={handleSpecialActionTextModeChange}
+        playerInfoMode={playerInfoMode}
+        onChangePlayerInfoMode={handlePlayerInfoModeChange}
+        controllerBgMode={controllerBgMode}
+        onChangeControllerBgMode={handleControllerBgModeChange}
+        controllerTheme={controllerTheme}
+        onChangeControllerTheme={handleControllerThemeChange}
+        playerIndicatorType={playerIndicatorType}
+        onChangePlayerIndicatorType={handlePlayerIndicatorTypeChange}
+        playerIndicatorStyle={playerIndicatorStyle}
+        onChangePlayerIndicatorStyle={handlePlayerIndicatorStyleChange}
       />
     </div>
   );

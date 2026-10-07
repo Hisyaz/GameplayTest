@@ -142,6 +142,18 @@ export class MatchEngine {
     pitchTilt: 0.5,
   };
 
+  /**
+   * Camera and Radar focus mode:
+   * 'ball' = follows ball (default)
+   * 'player' = follows user-controlled player
+   */
+  public cameraFocus: 'ball' | 'player' = 'ball';
+
+  public toggleCameraFocus(): 'ball' | 'player' {
+    this.cameraFocus = this.cameraFocus === 'ball' ? 'player' : 'ball';
+    return this.cameraFocus;
+  }
+
   public score: MatchScore = { home: 0, away: 0 };
   public difficulty: DifficultyLevel = 'easy';
   public matchPhase: MatchPhase = 'kickoff_ready';
@@ -185,6 +197,12 @@ export class MatchEngine {
     tierColor: '#86efac',
     tierLabel: 'LOW POWER',
   };
+
+  /**
+   * Analog deflection ratio from virtual stick (1.0 = normal keyboard/full stick).
+   * Used for smooth walking speed when stick is pulled slightly.
+   */
+  public analogSpeedRatio: number = 1.0;
 
   public goalNetShake: number = 0;
   private outOfBoundsDelay: number = 0;
@@ -382,9 +400,32 @@ export class MatchEngine {
   }
 
   /**
-   * Called the exact millisecond user presses an action button or key down (Pass, Shoot, Cross, Long Pass)
+   * Updates current charging action modifier (Q special curve or E knuckle) on the fly
+   * when sliding buttons downward (Q) or upward (E) on touch controls.
    */
-  public triggerActionPress(action: PowerActionType, keys?: KeyState) {
+  public setActionModifier(modifier: 'normal' | 'Q' | 'E') {
+    if (this.powerBar.isActive) {
+      if (modifier === 'Q') {
+        this.powerBar.isSpecial = true;
+        this.powerBar.isKnuckle = false;
+        this.updatePowerBarTiers();
+      } else if (modifier === 'E') {
+        this.powerBar.isKnuckle = true;
+        this.powerBar.isSpecial = false;
+        this.updatePowerBarTiers();
+      } else {
+        this.powerBar.isSpecial = false;
+        this.powerBar.isKnuckle = false;
+        this.updatePowerBarTiers();
+      }
+    }
+  }
+
+  /**
+   * Called the exact millisecond user presses an action button or key down (Pass, Shoot, Cross, Long Pass)
+   * Supports modifier: 'Q' (downward slide) or 'E' (upward slide)
+   */
+  public triggerActionPress(action: PowerActionType, keys?: KeyState, modifier?: 'normal' | 'Q' | 'E') {
     const player = this.getControlledPlayer();
     if (!player) return;
 
@@ -393,10 +434,19 @@ export class MatchEngine {
 
     if (hasBall) {
       const k = keys || (this as any)._lastKeys || {};
-      const wantsKnuckle = !!k.KeyE && !player.isLongThrowCharging;
-      const wantsSpecial = !!k.KeyQ && !player.isShielding;
+      const wantsKnuckle = modifier === 'E' || (modifier !== 'Q' && !!k.KeyE && !player.isLongThrowCharging);
+      const wantsSpecial = modifier === 'Q' || (modifier !== 'E' && !!k.KeyQ && !player.isShielding);
       this.startChargingPower(action, wantsSpecial, wantsKnuckle);
     } else {
+      // Without ball: Q slide triggers Shoulder Hit; E slide triggers Shirt Pull
+      if (modifier === 'Q') {
+        executeShoulderHit(player, this.ball, this.players, this.referee, this.awardFoul.bind(this), this.setBanner.bind(this));
+        return;
+      } else if (modifier === 'E') {
+        executeShirtPull(player, this.players, this.referee, this.awardFoul.bind(this), this.setBanner.bind(this));
+        return;
+      }
+
       if (action === 'shoot') {
         this.executeStandingTackle(player);
       } else if (action === 'cross') {
@@ -413,20 +463,30 @@ export class MatchEngine {
    * Called the exact millisecond user releases an action button or key up (P, S, C, L)
    * The player executes the pass/shoot/cross/long pass animation the exact millisecond of release.
    */
-  public triggerActionRelease(action: PowerActionType, keys?: KeyState) {
+  public triggerActionRelease(action: PowerActionType, keys?: KeyState, modifier?: 'normal' | 'Q' | 'E') {
     const player = this.getControlledPlayer();
     if (!player) return;
 
+    const k = keys || (this as any)._lastKeys || {};
+    if (modifier === 'Q') {
+      this.powerBar.isSpecial = true;
+      this.powerBar.isKnuckle = false;
+      this.updatePowerBarTiers();
+    } else if (modifier === 'E') {
+      this.powerBar.isKnuckle = true;
+      this.powerBar.isSpecial = false;
+      this.updatePowerBarTiers();
+    }
+
     if (this.powerBar.isActive && this.powerBar.action === action) {
-      this.executeChargedAction(player, keys || (this as any)._lastKeys || {});
+      this.executeChargedAction(player, k);
     } else {
       // Quick tap without waiting for charge frame: execute immediately with crisp low power
       const distToBall = Math.hypot(this.ball.x - player.x, this.ball.y - player.y);
       const hasBall = this.ball.ownerId === player.id || (!this.ball.ownerId && distToBall < 26 && this.ball.z < 8);
       if (hasBall) {
-        const k = keys || (this as any)._lastKeys || {};
-        const wantsKnuckle = !!k.KeyE;
-        const wantsSpecial = !!k.KeyQ;
+        const wantsKnuckle = modifier === 'E' || (modifier !== 'Q' && !!k.KeyE);
+        const wantsSpecial = modifier === 'Q' || (modifier !== 'E' && !!k.KeyQ);
         this.startChargingPower(action, wantsSpecial, wantsKnuckle);
         this.powerBar.power = 0.25;
         this.executeChargedAction(player, k as KeyState);
@@ -605,6 +665,9 @@ export class MatchEngine {
    */
   public update(keys: KeyState) {
     if (this.isPaused) return;
+
+    // Strict single controlled player synchronization
+    this.updateUserControlledFlag();
 
     const timeScale = this.getTimeScale();
 
@@ -970,7 +1033,9 @@ export class MatchEngine {
       const isSprinting = (keys.Shift || isDashing) && (dx !== 0 || dy !== 0) && player.stamina > 10;
       let currentSpeed = isDashing
         ? player.stats.sprintSpeed * 1.55
-        : (isSprinting ? player.stats.sprintSpeed : player.stats.speed);
+        : (isSprinting
+            ? player.stats.sprintSpeed
+            : player.stats.speed * Math.max(0.65, Math.min(1.0, this.analogSpeedRatio)));
 
       // Step-overs slow down the run
       if (player.isStepOverActive) {
@@ -3346,9 +3411,13 @@ export class MatchEngine {
    * but as you go down to your own goal, the camera is higher and more above the ground"
    */
   private updateCamera() {
-    // Smooth lerp towards ball
-    this.camera.x += (this.ball.x - this.camera.x) * 0.08;
-    this.camera.y += (this.ball.y - this.camera.y) * 0.08;
+    // Smooth lerp towards ball or user-controlled player based on cameraFocus toggle
+    const controlledPlayer = this.getControlledPlayer();
+    const targetX = this.cameraFocus === 'player' && controlledPlayer ? controlledPlayer.x : this.ball.x;
+    const targetY = this.cameraFocus === 'player' && controlledPlayer ? controlledPlayer.y : this.ball.y;
+
+    this.camera.x += (targetX - this.camera.x) * 0.08;
+    this.camera.y += (targetY - this.camera.y) * 0.08;
 
     // Calculate vertical position ratio on field (0 at rival top goal, 1 at own bottom goal)
     const normY = Math.max(0, Math.min(1, (this.camera.y - PITCH_CONFIG.PITCH_TOP) / PITCH_CONFIG.FIELD_HEIGHT));

@@ -131,28 +131,6 @@ export function drawPlayerSprite(
     ctx.fillText('😵‍💫', player.x, emojiY);
     ctx.restore();
   }
-
-  // User control indicator triangle
-  if (player.isUserControlled) {
-    ctx.save();
-    const bob = Math.sin(Date.now() * 0.008) * 2;
-    const arrowY = player.y - sh - 3 + bob;
-
-    // Glowing retro triangle
-    ctx.fillStyle = '#ffdf00';
-    ctx.beginPath();
-    ctx.moveTo(player.x, arrowY + 6);
-    ctx.lineTo(player.x - 5, arrowY);
-    ctx.lineTo(player.x + 5, arrowY);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.restore();
-  }
 }
 
 /**

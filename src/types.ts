@@ -280,3 +280,6 @@ export interface KeyState {
   KeyE: boolean;
   Space: boolean;
 }
+
+export type PlayerIndicatorType = 'small_arrow' | 'big_arrow' | 'circle';
+export type PlayerIndicatorStyle = 'solid' | 'transparent' | 'off';

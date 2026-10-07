@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MatchEngine } from '../game/engine';
-import { KeyState, PowerBarState } from '../types';
+import { KeyState, PowerBarState, PlayerIndicatorType, PlayerIndicatorStyle } from '../types';
 import { drawPitch, drawParticles } from '../game/pitchRenderer';
 import { drawPlayerSprite, drawBall, drawReferee } from '../game/sprites';
 import { HOME_KIT, AWAY_KIT } from '../game/constants';
@@ -10,12 +10,16 @@ interface PitchCanvasProps {
   engine: MatchEngine;
   keysRef: React.MutableRefObject<KeyState>;
   onTick?: () => void;
+  playerIndicatorType?: PlayerIndicatorType;
+  playerIndicatorStyle?: PlayerIndicatorStyle;
 }
 
 export const PitchCanvas: React.FC<PitchCanvasProps> = ({
   engine,
   keysRef,
   onTick,
+  playerIndicatorType = 'small_arrow',
+  playerIndicatorStyle = 'solid',
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -116,9 +120,9 @@ export const PitchCanvas: React.FC<PitchCanvasProps> = ({
           const kit = p.team === 'home' ? HOME_KIT : AWAY_KIT;
           drawPlayerSprite(ctx, p, kit);
 
-          // If this player is controlled by the user, draw retro chevron indicator above head
-          if (p.isUserControlled) {
-            drawUserPlayerIndicator(ctx, p);
+          // If this player is controlled by the user, draw retro indicator (strictly single player)
+          if (p.id === engine.userControlledPlayerId) {
+            drawUserPlayerIndicator(ctx, p, playerIndicatorType as PlayerIndicatorType, playerIndicatorStyle as PlayerIndicatorStyle);
             if (engine.powerBar.isActive) {
               drawPlayerPowerBar(ctx, p, engine.powerBar);
             }
@@ -174,41 +178,93 @@ export const PitchCanvas: React.FC<PitchCanvasProps> = ({
 
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [engine, keysRef, onTick]);
+  }, [engine, keysRef, onTick, playerIndicatorType, playerIndicatorStyle]);
 
   /**
-   * Draws retro triangular player indicator arrow and name tag above player
+   * Draws controlled player indicator with selectable shape (small arrow, big arrow, bottom circle)
+   * and style (solid, transparent, off), cleanly positioned above or around the player without touching.
    */
-  const drawUserPlayerIndicator = (ctx: CanvasRenderingContext2D, player: typeof engine.players[0]) => {
+  const drawUserPlayerIndicator = (
+    ctx: CanvasRenderingContext2D,
+    player: typeof engine.players[0],
+    type: PlayerIndicatorType,
+    style: PlayerIndicatorStyle
+  ) => {
+    if (style === 'off') return;
+
     ctx.save();
     const x = Math.round(player.x);
-    const bounceY = Math.sin(Date.now() / 150) * 3;
-    const y = Math.round(player.y - 38 + bounceY);
+    const isTrans = style === 'transparent';
+    ctx.globalAlpha = isTrans ? 0.52 : 1.0;
 
-    // Triangular downward pointer
-    ctx.fillStyle = '#ffea00';
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(x - 5, y - 8);
-    ctx.lineTo(x + 5, y - 8);
-    ctx.lineTo(x, y - 1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    if (type === 'circle') {
+      // Circle around the bottom / feet of the player on the pitch
+      const feetY = Math.round(player.y + 2);
+      const pulse = Math.sin(Date.now() / 120) * 1.5;
 
-    // Player name floating badge
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-    ctx.fillRect(x - 26, y - 21, 52, 11);
-    ctx.strokeStyle = '#ffd700';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x - 26, y - 21, 52, 11);
+      // Outer tactical ellipse
+      ctx.strokeStyle = isTrans ? '#38bdf8' : '#facc15';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(x, feetY, 14 + pulse, 7 + pulse * 0.5, 0, 0, Math.PI * 2);
+      ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '7px "Press Start 2P", monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(player.name.slice(0, 8), x, y - 15);
+      // Inner dashed contour ring
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x, feetY, 10, 5, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Direction notch on circle
+      const ang = player.facingAngle;
+      const notchX = x + Math.cos(ang) * (14 + pulse);
+      const notchY = feetY + Math.sin(ang) * (7 + pulse * 0.5);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(notchX, notchY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (type === 'big_arrow') {
+      // Bold 32-bit arcade chevron pointer, floating cleanly above player's head without touching
+      const bounceY = Math.sin(Date.now() / 140) * 3;
+      const tipY = Math.round(player.y - 42 + bounceY);
+
+      // Outer bold chevron
+      ctx.fillStyle = '#facc15';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 8, tipY - 11);
+      ctx.lineTo(x + 8, tipY - 11);
+      ctx.lineTo(x, tipY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Golden inner highlight bevel
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x - 6, tipY - 9.5);
+      ctx.lineTo(x + 6, tipY - 9.5);
+      ctx.stroke();
+    } else {
+      // 'small_arrow' (default):
+      // Small retro triangle pointer, floating cleanly above head without touching
+      const bounceY = Math.sin(Date.now() / 150) * 2.5;
+      const tipY = Math.round(player.y - 41 + bounceY);
+
+      ctx.fillStyle = '#ffea00';
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, tipY - 7);
+      ctx.lineTo(x + 5, tipY - 7);
+      ctx.lineTo(x, tipY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
 
     ctx.restore();
   };
@@ -389,19 +445,6 @@ export const PitchCanvas: React.FC<PitchCanvasProps> = ({
     ctx.arc(px, py + 2, pulse - 4, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Overhead [Q] SHIELDING tactical badge
-    const badgeY = py - 46;
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-    ctx.fillRect(px - 40, badgeY, 80, 14);
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.2;
-    ctx.strokeRect(px - 40, badgeY, 80, 14);
-
-    ctx.font = '6px "Press Start 2P", monospace';
-    ctx.fillStyle = '#38bdf8';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🛡️ SHIELD [Q]', px, badgeY + 7);
     ctx.restore();
   };
 
